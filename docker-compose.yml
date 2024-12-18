@@ -1,0 +1,36 @@
+services:
+  user-db:
+    image: postgres
+    restart: always
+    shm_size: 128mb
+    environment:
+      POSTGRES_PASSWORD: sample_password
+
+  order-db:
+    image: postgres
+    restart: always
+    shm_size: 128mb
+    environment:
+      POSTGRES_PASSWORD: sample_password
+
+  gateway:
+    build: ./gateway
+    ports:
+      - "8000:8000"
+    environment:
+      USER_SERVICE: user:8080
+      ORDER_SERVICE: order:8081
+
+  user:
+    build: ./user
+    ports:
+      - "8080:8080"
+    environment:
+      HOST: user
+  
+  order:
+    build: ./order
+    ports:
+      - "8081:8081"
+    environment:
+      HOST: order

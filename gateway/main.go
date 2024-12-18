@@ -4,16 +4,12 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"syscall"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
 	pb "github.com/two-phase-commit-demo/gateway/proto"
-)
-
-const (
-	userServiceAddr  = "127.0.0.1:8080"
-	orderServiceAddr = "127.0.0.1:8081"
 )
 
 var (
@@ -36,6 +32,7 @@ func CreateOrder(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(500)
 		json.NewEncoder(w).Encode(resp)
+		return
 	}
 
 	orderReq := &pb.CreateOrderRequest{
@@ -52,6 +49,7 @@ func CreateOrder(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(500)
 		json.NewEncoder(w).Encode(resp)
+		return
 	}
 
 	resp := map[string]string{
@@ -65,6 +63,16 @@ func CreateOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	userServiceAddr, ok := syscall.Getenv("USER_SERVICE")
+	if !ok {
+		userServiceAddr = "127.0.0.1:8080"
+	}
+
+	orderServiceAddr, ok := syscall.Getenv("ORDER_SERVICE")
+	if !ok {
+		userServiceAddr = "127.0.0.1:8081"
+	}
+
 	mux := http.NewServeMux()
 
 	var opts []grpc.DialOption
