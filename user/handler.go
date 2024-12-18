@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 
 	pb "github.com/two-phase-commit-demo/user/proto"
 	"google.golang.org/grpc"
@@ -16,6 +17,7 @@ func NewGRPCHandler(server *grpc.Server) {
 	pb.RegisterUserServiceServer(server, handler)
 }
 
-func (h *grpcHandler) CreateOrder(ctx context.Context, req *pb.CreateOrderRequest) (*pb.CreateOrderResponse, error) {
+func (h *grpcHandler) DeductWallet(ctx context.Context, req *pb.DeductWalletRequest) (*pb.DeductWalletResponse, error) {
+	log.Println("user service: deduct wallet")
 	return nil, nil
 }

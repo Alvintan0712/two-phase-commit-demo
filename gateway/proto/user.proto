@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package proto;
 
-option go_package = "github.com/two-phase-commit-demo/user/proto";
+option go_package = "github.com/two-phase-commit-demo/gateway/proto";
 
 service UserService {
   rpc DeductWallet (DeductWalletRequest) returns (DeductWalletResponse);

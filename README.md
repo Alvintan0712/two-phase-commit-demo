@@ -4,6 +4,20 @@ This is a demo two-phase commit (2PC) in Go example.
 
 Imitate user place an order and deduct the wallet balance in user database and order database.
 
+# Getting Started
+
+## Init Project
+
+Generate the protobuf API code
+
+```sh
+cd order
+make
+
+cd user
+make
+```
+
 # References
 [Alibaba Cloud Blog](https://www.alibabacloud.com/blog/tech-insights---two-phase-commit-protocol-for-distributed-transactions_597326)
 
