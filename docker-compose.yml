@@ -5,6 +5,10 @@ services:
     shm_size: 128mb
     environment:
       POSTGRES_PASSWORD: sample_password
+      POSTGRES_DB: user
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 3s
 
   order-db:
     image: postgres
@@ -12,6 +16,10 @@ services:
     shm_size: 128mb
     environment:
       POSTGRES_PASSWORD: sample_password
+      POSTGRES_DB: order
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 3s
 
   gateway:
     build: ./gateway
@@ -27,10 +35,16 @@ services:
       - "8080:8080"
     environment:
       HOST: user
-  
+    depends_on:
+      user-db:
+        condition: service_healthy
+
   order:
     build: ./order
     ports:
       - "8081:8081"
     environment:
       HOST: order
+    depends_on:
+      order-db:
+        condition: service_healthy
