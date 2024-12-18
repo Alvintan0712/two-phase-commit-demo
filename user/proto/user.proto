@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package proto;
+
+option go_package = "github.com/two-phase-commit-demo/user/proto";
+
+service UserService {
+  rpc CreateOrder (CreateOrderRequest) returns (CreateOrderResponse);
+}
+
+message CreateOrderRequest {
+  string order_id = 1;
+  int32 price = 2;
+}
+
+message CreateOrderResponse {
+  string message = 1;
+  bool success = 2;
+}
