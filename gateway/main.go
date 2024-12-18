@@ -19,7 +19,8 @@ var (
 
 func CreateOrder(w http.ResponseWriter, r *http.Request) {
 	deductReq := &pb.DeductWalletRequest{
-		Price: 100,
+		UserId: "04937668-e73f-4035-a7d7-8f8db1a679e8",
+		Price:  100,
 	}
 	_, err := userServiceClient.DeductWallet(r.Context(), deductReq)
 	if err != nil {
@@ -35,7 +36,7 @@ func CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	orderReq := &pb.CreateOrderRequest{
-		UserId: "id",
+		UserId: "04937668-e73f-4035-a7d7-8f8db1a679e8",
 		Price:  100,
 	}
 	_, err = orderServiceClient.CreateOrder(r.Context(), orderReq)
