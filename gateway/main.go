@@ -13,33 +13,17 @@ import (
 )
 
 var (
-	userServiceClient  pb.UserServiceClient
-	orderServiceClient pb.OrderServiceClient
+	userServiceClient        pb.UserServiceClient
+	orderServiceClient       pb.OrderServiceClient
+	coordinatorServiceClient pb.CoordinatorServiceClient
 )
 
 func CreateOrder(w http.ResponseWriter, r *http.Request) {
-	deductReq := &pb.DeductWalletRequest{
+	orderReq := &pb.PlaceOrderRequest{
 		UserId: "04937668-e73f-4035-a7d7-8f8db1a679e8",
 		Price:  100,
 	}
-	_, err := userServiceClient.DeductWallet(r.Context(), deductReq)
-	if err != nil {
-		resp := map[string]string{
-			"message": err.Error(),
-			"status":  "error",
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(500)
-		json.NewEncoder(w).Encode(resp)
-		return
-	}
-
-	orderReq := &pb.CreateOrderRequest{
-		UserId: "04937668-e73f-4035-a7d7-8f8db1a679e8",
-		Price:  100,
-	}
-	_, err = orderServiceClient.CreateOrder(r.Context(), orderReq)
+	_, err := coordinatorServiceClient.PlaceOrder(r.Context(), orderReq)
 	if err != nil {
 		resp := map[string]string{
 			"message": err.Error(),
@@ -70,7 +54,12 @@ func main() {
 
 	orderServiceAddr, ok := syscall.Getenv("ORDER_SERVICE")
 	if !ok {
-		userServiceAddr = "127.0.0.1:8081"
+		orderServiceAddr = "127.0.0.1:8081"
+	}
+
+	coordinatorServiceAddr, ok := syscall.Getenv("COORDINATOR_SERVICE")
+	if !ok {
+		coordinatorServiceAddr = "127.0.0.1:8082"
 	}
 
 	mux := http.NewServeMux()
@@ -87,8 +76,14 @@ func main() {
 		log.Fatal(err)
 	}
 
+	coordinatorServiceClientConn, err := grpc.NewClient(coordinatorServiceAddr, opts...)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	userServiceClient = pb.NewUserServiceClient(userServiceClientConn)
 	orderServiceClient = pb.NewOrderServiceClient(orderServiceClientConn)
+	coordinatorServiceClient = pb.NewCoordinatorServiceClient(coordinatorServiceClientConn)
 
 	mux.HandleFunc("POST /v1/order", CreateOrder)
 
