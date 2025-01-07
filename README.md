@@ -15,6 +15,15 @@ cd shared
 make
 ```
 
+## Start the project
+```sh
+docker compose up --build -d
+```
+
+```sh
+curl -X POST http://localhost:8000/order
+```
+
 # References
 [Alibaba Cloud Blog](https://www.alibabacloud.com/blog/tech-insights---two-phase-commit-protocol-for-distributed-transactions_597326)
 
