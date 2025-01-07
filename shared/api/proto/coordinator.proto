@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package proto;
 
-option go_package = "github.com/two-phase-commit-demo/gateway/proto";
+option go_package = "github.com/Alvintan0712/two-phase-commit-demo/shared/api/proto";
 
 service CoordinatorService {
   rpc PlaceOrder (PlaceOrderRequest) returns (PlaceOrderResponse);

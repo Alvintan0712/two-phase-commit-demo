@@ -9,12 +9,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	pb "github.com/two-phase-commit-demo/gateway/proto"
+	pb "github.com/Alvintan0712/two-phase-commit-demo/shared/api/proto"
 )
 
 var (
-	userServiceClient        pb.UserServiceClient
-	orderServiceClient       pb.OrderServiceClient
 	coordinatorServiceClient pb.CoordinatorServiceClient
 )
 
@@ -47,16 +45,6 @@ func CreateOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	userServiceAddr, ok := syscall.Getenv("USER_SERVICE")
-	if !ok {
-		userServiceAddr = "127.0.0.1:8080"
-	}
-
-	orderServiceAddr, ok := syscall.Getenv("ORDER_SERVICE")
-	if !ok {
-		orderServiceAddr = "127.0.0.1:8081"
-	}
-
 	coordinatorServiceAddr, ok := syscall.Getenv("COORDINATOR_SERVICE")
 	if !ok {
 		coordinatorServiceAddr = "127.0.0.1:8082"
@@ -66,23 +54,11 @@ func main() {
 
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	userServiceClientConn, err := grpc.NewClient(userServiceAddr, opts...)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	orderServiceClientConn, err := grpc.NewClient(orderServiceAddr, opts...)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	coordinatorServiceClientConn, err := grpc.NewClient(coordinatorServiceAddr, opts...)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	userServiceClient = pb.NewUserServiceClient(userServiceClientConn)
-	orderServiceClient = pb.NewOrderServiceClient(orderServiceClientConn)
 	coordinatorServiceClient = pb.NewCoordinatorServiceClient(coordinatorServiceClientConn)
 
 	mux.HandleFunc("POST /v1/order", CreateOrder)

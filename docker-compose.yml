@@ -1,8 +1,22 @@
 services:
+  zookeeper:
+    image: zookeeper
+    restart: always
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: [ "CMD-SHELL", "echo ruok | nc localhost 2181 || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   user-db:
     image: postgres
     restart: always
     shm_size: 128mb
+    command: postgres -c max_prepared_transactions=10
     environment:
       POSTGRES_PASSWORD: sample_password
       POSTGRES_DB: user
@@ -14,6 +28,7 @@ services:
     image: postgres
     restart: always
     shm_size: 128mb
+    command: postgres -c max_prepared_transactions=10
     environment:
       POSTGRES_PASSWORD: sample_password
       POSTGRES_DB: order
@@ -22,7 +37,9 @@ services:
       interval: 3s
 
   gateway:
-    build: ./gateway
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
     ports:
       - "8000:8000"
     environment:
@@ -31,28 +48,49 @@ services:
       COORDINATOR_SERVICE: coordinator:8082
 
   coordinator:
-    build: ./coordinator
+    build:
+      context: .
+      dockerfile: coordinator/Dockerfile
     ports:
       - "8082:8082"
     environment:
       HOST: coordinator
+      USER_SERVICE: user:8080
+      ORDER_SERVICE: order:8081
+      ZK_SERVER: zookeeper:2181
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+        restart: true
 
   user:
-    build: ./user
+    build:
+      context: .
+      dockerfile: user/Dockerfile
     ports:
       - "8080:8080"
     environment:
       HOST: user
+      ZK_SERVER: zookeeper:2181
     depends_on:
       user-db:
         condition: service_healthy
+      zookeeper:
+        condition: service_healthy
+        restart: true
 
   order:
-    build: ./order
+    build:
+      context: .
+      dockerfile: order/Dockerfile
     ports:
       - "8081:8081"
     environment:
       HOST: order
+      ZK_SERVER: zookeeper:2181
     depends_on:
       order-db:
         condition: service_healthy
+      zookeeper:
+        condition: service_healthy
+        restart: true

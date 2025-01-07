@@ -6,6 +6,8 @@ import (
 	"net"
 	"syscall"
 
+	"github.com/Alvintan0712/two-phase-commit-demo/shared/pkg/transaction"
+	"github.com/Alvintan0712/two-phase-commit-demo/shared/pkg/zkclient"
 	"google.golang.org/grpc"
 )
 
@@ -21,8 +23,23 @@ func main() {
 	}
 	defer listen.Close()
 
+	zkServer, ok := syscall.Getenv("ZK_SERVER")
+	if !ok {
+		zkServer = "localhost:2181"
+	}
+
+	zkClient, err := zkclient.NewZooKeeperClient([]string{zkServer})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	txWatcher, err := transaction.NewTransactionWatcher(zkClient)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	server := grpc.NewServer()
-	NewGRPCHandler(server)
+	NewHandler(server, txWatcher, zkClient)
 
 	log.Printf("User service started at %s:8080\n", host)
 
