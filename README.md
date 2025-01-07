@@ -11,10 +11,7 @@ Imitate user place an order and deduct the wallet balance in user database and o
 Generate the protobuf API code
 
 ```sh
-cd order
-make
-
-cd user
+cd shared
 make
 ```
 
