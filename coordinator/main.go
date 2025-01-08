@@ -40,6 +40,7 @@ func main() {
 	}
 
 	tw, err := transaction.NewTransactionWatcher(zkClient)
+	defer tw.Stop()
 	if err != nil {
 		log.Fatal(err)
 	}

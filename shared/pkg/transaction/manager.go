@@ -29,6 +29,8 @@ func NewTransactionManager(client *zkclient.ZooKeeperClient) (*transactionManage
 		return nil, err
 	}
 
+	go tm.clean()
+
 	return tm, nil
 }
 
@@ -163,7 +165,20 @@ func (tm *transactionManager) Finalize(txId string, isCommit bool) error {
 
 			for _, child := range children {
 				path := txPath + "/" + child
-				tm.client.Set(path, []byte(value))
+				data, err := tm.client.Get(path)
+				if err != nil {
+					return fmt.Errorf("error in get znode %s: %v", path, err)
+				}
+
+				if string(data) == string(StatusReady) {
+					if err := tm.client.Set(path, []byte(value)); err != nil {
+						log.Printf("error in set znode %s value: %v\n", path, err)
+					}
+				} else {
+					if err := tm.client.Set(path, []byte(StatusRolledBack)); err != nil {
+						log.Printf("error in set znode %s value: %v\n", path, err)
+					}
+				}
 			}
 			return nil
 		}
@@ -191,6 +206,83 @@ func (tm *transactionManager) init() error {
 
 	log.Println("transaction znodes initialized")
 	return nil
+}
+
+func (tm *transactionManager) clean() {
+	interval := time.Duration(time.Second)
+	for {
+		exists, err := tm.client.Exists(tm.basePath)
+		if err != nil || !exists {
+			log.Printf("error in check base path: %v\n", err)
+			time.Sleep(interval)
+			continue
+		}
+
+		txTypes, err := tm.client.Children(tm.basePath)
+		if err != nil {
+			log.Printf("error in list base path children: %v\n", err)
+			time.Sleep(interval)
+			continue
+		}
+
+		for _, txType := range txTypes {
+			path := tm.basePath + "/" + txType
+			children, err := tm.client.Children(path)
+			if err != nil {
+				log.Printf("error in list transaction type %s children: %v\n", txType, err)
+				continue
+			}
+
+			for _, txId := range children {
+				deletable, err := tm.checkTransactionComplete(TransactionType(txType), txId)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				if deletable {
+					txPath := path + "/" + txId
+					if err := tm.client.DeleteRecursive(txPath); err != nil {
+						log.Printf("error in delete transaction %s: %v\n", txPath, err)
+					}
+				}
+			}
+		}
+
+		time.Sleep(interval)
+	}
+}
+
+func (tm *transactionManager) checkTransactionComplete(txType TransactionType, txId string) (bool, error) {
+	txPath := tm.basePath + "/" + string(txType) + "/" + txId
+	log.Printf("check transaction %s\n", txPath)
+
+	exists, err := tm.client.Exists(txPath)
+	if err != nil {
+		return false, fmt.Errorf("error in check path: %v", err)
+	}
+
+	if !exists {
+		return false, fmt.Errorf("transaction not found")
+	}
+
+	participants, err := tm.client.Children(txPath)
+	if err != nil {
+		return false, fmt.Errorf("error in list transaction %s %s participants: %v", txType, txPath, err)
+	}
+
+	for _, participant := range participants {
+		path := txPath + "/" + participant
+		data, err := tm.client.Get(path)
+		if err != nil {
+			return false, fmt.Errorf("error in get znode: %v", err)
+		}
+
+		if string(data) != string(StatusCommitted) && string(data) != string(StatusRolledBack) {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
 
 func (tm *transactionManager) acquireExclusiveLock(resources []ResourceType) error {

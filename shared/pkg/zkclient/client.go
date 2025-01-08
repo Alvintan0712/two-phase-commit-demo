@@ -1,6 +1,7 @@
 package zkclient
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/go-zookeeper/zk"
@@ -117,6 +118,28 @@ func (c *ZooKeeperClient) Delete(path string) error {
 	err := c.conn.Delete(path, -1)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (c *ZooKeeperClient) DeleteRecursive(path string) error {
+	children, err := c.Children(path)
+	if err != nil {
+		return fmt.Errorf("error in get children %s: %v", path, err)
+	}
+
+	for _, child := range children {
+		childPath := path + "/" + child
+		err := c.DeleteRecursive(childPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = c.conn.Delete(path, -1)
+	if err != nil {
+		return fmt.Errorf("failed to delete %s: %v", path, err)
 	}
 
 	return nil

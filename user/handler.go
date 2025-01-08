@@ -89,6 +89,10 @@ func (h *transactionHandler) prepareDeductBalance(txData transaction.Transaction
 			break
 		}
 
+		if string(data) != string(transaction.StatusInit) {
+			return nil
+		}
+
 		<-ch
 	}
 
@@ -208,7 +212,7 @@ func (h *grpcHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.
 
 	query := `
 		SELECT id, balance FROM users
-		WHERE id = ?
+		WHERE id = $1
 	`
 	row := h.db.QueryRow(query, req.UserId)
 	if err := row.Scan(&resp.Id, &resp.Balance); err != nil {

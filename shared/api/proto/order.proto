@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package proto;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/Alvintan0712/two-phase-commit-demo/shared/api/proto";
+
+service OrderService {
+  rpc GetOrders (google.protobuf.Empty) returns (GetOrdersResponse);
+}
+
+message Order {
+  string id = 1;
+  int32 price = 2;
+}
+
+message GetOrdersResponse {
+  repeated Order orders = 1;
+}

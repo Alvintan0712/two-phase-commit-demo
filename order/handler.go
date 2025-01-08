@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -12,7 +13,14 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
+
+type grpcHandler struct {
+	pb.UnimplementedOrderServiceServer
+
+	db *sql.DB
+}
 
 type transactionHandler struct {
 	serviceName string
@@ -43,6 +51,9 @@ func NewHandler(server *grpc.Server, watcher transaction.TransactionWatcher, zkC
 		log.Printf("table created failed: %v\n", err)
 	}
 
+	handler := &grpcHandler{db: db}
+	pb.RegisterOrderServiceServer(server, handler)
+
 	registerTransactionHandlers(db, watcher, zkClient)
 }
 
@@ -72,6 +83,10 @@ func (h *transactionHandler) prepareCreateOrder(txData transaction.TransactionDa
 
 		if string(data) == string(transaction.StatusPrepared) {
 			break
+		}
+
+		if string(data) != string(transaction.StatusInit) {
+			return nil
 		}
 
 		<-ch
@@ -173,4 +188,28 @@ func (h *transactionHandler) rollback(tx *sql.Tx, txId string, txType transactio
 	}
 
 	return nil
+}
+
+func (h *grpcHandler) GetOrders(ctx context.Context, req *emptypb.Empty) (*pb.GetOrdersResponse, error) {
+	log.Println("order service: get orders")
+
+	rows, err := h.db.Query("SELECT id, price FROM orders")
+	if err != nil {
+		log.Printf("error in query orders: %v\n", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var orders []*pb.Order
+	for rows.Next() {
+		var order pb.Order
+		if err := rows.Scan(&order.Id, &order.Price); err != nil {
+			log.Printf("error in scan order: %v\n", err)
+			return nil, err
+		}
+
+		orders = append(orders, &order)
+	}
+
+	return &pb.GetOrdersResponse{Orders: orders}, nil
 }
