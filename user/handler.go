@@ -84,6 +84,7 @@ func (h *transactionHandler) prepareDeductBalance(txData transaction.Transaction
 		if err != nil {
 			return fmt.Errorf("error in set %s watches: %v", path, err)
 		}
+		log.Printf("prepare deduct balance status: %s\n", data)
 
 		if string(data) == string(transaction.StatusPrepared) {
 			break
@@ -187,7 +188,12 @@ func (h *transactionHandler) finalizeDeductBalance(txId string) error {
 				return fmt.Errorf("error in set znode value: %v", err)
 			}
 			return nil
+		case string(transaction.StatusCommitted):
+			return nil
+		case string(transaction.StatusRolledBack):
+			return nil
 		default:
+			log.Printf("finalize deduct balance transaction data: %v\n", string(data))
 		}
 
 		<-ch

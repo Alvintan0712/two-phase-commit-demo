@@ -80,6 +80,7 @@ func (h *transactionHandler) prepareCreateOrder(txData transaction.TransactionDa
 		if err != nil {
 			return fmt.Errorf("error in set %s watches: %v", path, err)
 		}
+		log.Printf("prepare create order status: %s\n", data)
 
 		if string(data) == string(transaction.StatusPrepared) {
 			break
@@ -171,8 +172,12 @@ func (h *transactionHandler) finalizeCreateOrder(txId string) error {
 				return fmt.Errorf("error in set znode value: %v", err)
 			}
 			return nil
+		case string(transaction.StatusCommitted):
+			return nil
+		case string(transaction.StatusRolledBack):
+			return nil
 		default:
-			log.Printf("transaction data: %v\n", string(data))
+			log.Printf("finalize create order transaction data: %v\n", string(data))
 		}
 
 		<-ch

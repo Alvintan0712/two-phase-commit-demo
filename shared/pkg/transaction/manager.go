@@ -29,7 +29,7 @@ func NewTransactionManager(client *zkclient.ZooKeeperClient) (*transactionManage
 		return nil, err
 	}
 
-	go tm.clean()
+	// go tm.clean()
 
 	return tm, nil
 }
@@ -209,7 +209,7 @@ func (tm *transactionManager) init() error {
 }
 
 func (tm *transactionManager) clean() {
-	interval := time.Duration(time.Second)
+	interval := time.Duration(time.Minute)
 	for {
 		exists, err := tm.client.Exists(tm.basePath)
 		if err != nil || !exists {

@@ -110,12 +110,19 @@ func (tw *transactionWatcher) watchTransaction(txType TransactionType) {
 				continue
 			}
 
+			var wg sync.WaitGroup
 			for _, child := range children {
-				if err := tw.processTransaction(txType, child); err != nil {
-					log.Printf("process %s transaction failed: %v\n", txType, err)
-					continue
-				}
+				wg.Add(1)
+				func() {
+					defer wg.Done()
+					if err := tw.processTransaction(txType, child); err != nil {
+						log.Printf("process %s transaction failed: %v\n", txType, err)
+						return
+					}
+				}()
 			}
+
+			wg.Wait()
 
 			select {
 			case <-tw.stopChan:
