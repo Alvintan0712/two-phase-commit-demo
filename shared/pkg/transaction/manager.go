@@ -29,20 +29,24 @@ func NewTransactionManager(client *zkclient.ZooKeeperClient) (*transactionManage
 		return nil, err
 	}
 
-	// go tm.clean()
+	go tm.clean()
 
 	return tm, nil
 }
 
 // our isolation level is serialization
 func (tm *transactionManager) Begin(txType TransactionType, payload []byte, participants []string, resources []ResourceType) (string, error) {
+	log.Printf("begin transaction %s\n", txType)
+
 	txId := uuid.New().String()
 	txPath := tm.basePath + "/" + string(txType) + "/" + txId
 	txData := TransactionData{
-		Id:        txId,
-		Type:      txType,
-		Timestamp: time.Now(),
-		Payload:   payload,
+		Id:           txId,
+		Type:         txType,
+		Timestamp:    time.Now(),
+		Payload:      payload,
+		Status:       StatusInit,
+		Participants: participants,
 	}
 	data, err := json.Marshal(txData)
 	if err != nil {
@@ -64,6 +68,8 @@ func (tm *transactionManager) Begin(txType TransactionType, payload []byte, part
 }
 
 func (tm *transactionManager) Prepare(txId string) error {
+	log.Printf("prepare transaction %s\n", txId)
+
 	for _, txType := range TransactionTypes {
 		txPath := tm.basePath + "/" + string(txType) + "/" + txId
 		exists, err := tm.client.Exists(txPath)
@@ -72,15 +78,37 @@ func (tm *transactionManager) Prepare(txId string) error {
 		}
 
 		if exists {
+			data, err := tm.client.Get(txPath)
+			if err != nil {
+				return fmt.Errorf("error in get znode %s: %v", txPath, err)
+			}
+
+			log.Printf("set %s status to prepared\n", txId)
+			var txData TransactionData
+			if err := json.Unmarshal(data, &txData); err != nil {
+				return fmt.Errorf("error in unmarshal transaction %s data: %v", txId, err)
+			}
+			txData.Status = StatusPrepared
+			data, err = json.Marshal(txData)
+			if err != nil {
+				return fmt.Errorf("error in marshal transaction %s data: %v", txId, err)
+			}
+			if err := tm.client.Set(txPath, data); err != nil {
+				return fmt.Errorf("error in set znode %s value: %v", txPath, err)
+			}
+
 			children, err := tm.client.Children(txPath)
 			if err != nil {
 				return fmt.Errorf("error in list children: %v", err)
 			}
 
+			log.Printf("set %s participants status to prepared\n", txId)
 			for _, child := range children {
 				path := txPath + "/" + child
 				tm.client.Set(path, []byte(StatusPrepared))
 			}
+
+			log.Printf("transaction %s prepared\n", txId)
 			return nil
 		}
 	}
@@ -89,8 +117,11 @@ func (tm *transactionManager) Prepare(txId string) error {
 }
 
 func (tm *transactionManager) GetVotesResult(txId string) (bool, error) {
+	log.Printf("get %s votes results\n", txId)
+
 	for _, txType := range TransactionTypes {
 		txPath := tm.basePath + "/" + string(txType) + "/" + txId
+
 		log.Printf("check %s\n", txPath)
 		exists, err := tm.client.Exists(txPath)
 		if err != nil {
@@ -99,15 +130,20 @@ func (tm *transactionManager) GetVotesResult(txId string) (bool, error) {
 
 		if exists {
 			log.Printf("get %s votes results\n", txId)
-			children, err := tm.client.Children(txPath)
+			data, err := tm.client.Get(txPath)
 			if err != nil {
-				return false, fmt.Errorf("error in list children: %v", err)
+				return false, fmt.Errorf("error in get znode %s: %v", txPath, err)
+			}
+
+			var txData TransactionData
+			if err := json.Unmarshal(data, &txData); err != nil {
+				return false, fmt.Errorf("error in unmarshal transaction %s data: %v", txId, err)
 			}
 
 			var wg sync.WaitGroup
 			isCommit := true
-			for _, child := range children {
-				path := txPath + "/" + child
+			for _, participant := range txData.Participants {
+				path := txPath + "/" + participant
 				wg.Add(1)
 				go func(znode string) {
 					defer wg.Done()
@@ -116,16 +152,21 @@ func (tm *transactionManager) GetVotesResult(txId string) (bool, error) {
 					for {
 						data, ch, err := tm.client.GetW(path)
 						if err != nil {
-							log.Printf("error in set watches %s: %v", path, err)
-							continue
+							if err == zk.ErrNoNode {
+								log.Printf("znode %s not found\n", path)
+							} else {
+								log.Printf("error in set watches %s: %v", path, err)
+							}
+							isCommit = false
+							return
 						}
 
 						log.Printf("%s votes results: %v\n", znode, string(data))
 
-						if string(data) != string(StatusPrepared) {
-							if string(data) == string(StatusAbort) {
-								isCommit = false
-							}
+						if string(data) == string(StatusReady) {
+							return
+						} else if string(data) == string(StatusAbort) {
+							isCommit = false
 							return
 						}
 
@@ -145,36 +186,56 @@ func (tm *transactionManager) GetVotesResult(txId string) (bool, error) {
 
 func (tm *transactionManager) Finalize(txId string, isCommit bool) error {
 	log.Println("finalize transaction " + txId)
+
+	value := StatusRollBack
+	if isCommit {
+		value = StatusCommit
+	}
+
 	for _, txType := range TransactionTypes {
 		txPath := tm.basePath + "/" + string(txType) + "/" + txId
+
 		exists, err := tm.client.Exists(txPath)
 		if err != nil {
-			return fmt.Errorf("error in check transaction path: %v", err)
-		}
-
-		value := StatusRollBack
-		if isCommit {
-			value = StatusCommit
+			return fmt.Errorf("error in check transaction path %s: %v", txPath, err)
 		}
 
 		if exists {
-			children, err := tm.client.Children(txPath)
+			data, err := tm.client.Get(txPath)
 			if err != nil {
-				return fmt.Errorf("error in list %s children: %v", txPath, err)
+				return fmt.Errorf("error in get znode %s: %v", txPath, err)
 			}
 
-			for _, child := range children {
-				path := txPath + "/" + child
+			var txData TransactionData
+			if err := json.Unmarshal(data, &txData); err != nil {
+				return fmt.Errorf("error in unmarshal transaction %s data: %v", txId, err)
+			}
+			txData.Status = value
+
+			data, err = json.Marshal(txData)
+			if err != nil {
+				return fmt.Errorf("error in marshal transaction %s data: %v", txId, err)
+			}
+
+			log.Printf("write %s status to %s\n", txId, value)
+			if err := tm.client.Set(txPath, data); err != nil {
+				return fmt.Errorf("error in set znode %s value: %v", txPath, err)
+			}
+
+			for _, participant := range txData.Participants {
+				path := txPath + "/" + participant
 				data, err := tm.client.Get(path)
 				if err != nil {
 					return fmt.Errorf("error in get znode %s: %v", path, err)
 				}
 
 				if string(data) == string(StatusReady) {
+					log.Printf("write %s/%s status to %s\n", txId, participant, value)
 					if err := tm.client.Set(path, []byte(value)); err != nil {
 						log.Printf("error in set znode %s value: %v\n", path, err)
 					}
 				} else {
+					log.Printf("write %s/%s status to %s\n", txId, participant, StatusRolledBack)
 					if err := tm.client.Set(path, []byte(StatusRolledBack)); err != nil {
 						log.Printf("error in set znode %s value: %v\n", path, err)
 					}

@@ -111,11 +111,11 @@ func (tw *transactionWatcher) watchTransaction(txType TransactionType) {
 			}
 
 			var wg sync.WaitGroup
-			for _, child := range children {
+			for _, txId := range children {
 				wg.Add(1)
 				func() {
 					defer wg.Done()
-					if err := tw.processTransaction(txType, child); err != nil {
+					if err := tw.processTransaction(txType, txId); err != nil {
 						log.Printf("process %s transaction failed: %v\n", txType, err)
 						return
 					}
@@ -134,16 +134,31 @@ func (tw *transactionWatcher) watchTransaction(txType TransactionType) {
 }
 
 func (tw *transactionWatcher) processTransaction(txType TransactionType, txId string) error {
+	log.Printf("process transaction %s/%s\n", txType, txId)
 	path := tw.basePath + "/" + string(txType) + "/" + txId
-	data, err := tw.client.Get(path)
-	if err != nil {
-		return fmt.Errorf("error getting transaction %s %s data: %v", txType, txId, err)
-	}
 
-	// unmarshal txData
 	var txData TransactionData
-	if err := json.Unmarshal(data, &txData); err != nil {
-		return fmt.Errorf("error unmarshaling transaction data: %v", err)
+	for {
+		data, ch, err := tw.client.GetW(path)
+		if err != nil {
+			return fmt.Errorf("error getting transaction %s %s data: %v", txType, txId, err)
+		}
+
+		// unmarshal txData
+		if err := json.Unmarshal(data, &txData); err != nil {
+			return fmt.Errorf("error unmarshaling transaction data: %v", err)
+		}
+
+		if txData.Status == StatusPrepared || txData.Status == StatusRollBack || txData.Status == StatusCommit {
+			break
+		}
+
+		if txData.Status == StatusCommitted || txData.Status == StatusRolledBack {
+			log.Printf("transaction %s/%s completed: %s\n", txType, txId, txData.Status)
+			return nil
+		}
+
+		<-ch
 	}
 
 	// get handler and execute

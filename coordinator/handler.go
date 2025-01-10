@@ -47,22 +47,22 @@ func (h *grpcHandler) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest)
 
 	txId, err := h.tm.Begin(transaction.OrderCreation, data, participants, resources)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error in begin transaction: %v", err)
 	}
 
 	err = h.tm.Prepare(txId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error in prepare transaction: %v", err)
 	}
 
 	isCommit, err := h.tm.GetVotesResult(txId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error in get votes result: %v", err)
 	}
 
 	err = h.tm.Finalize(txId, isCommit)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error in finalize transaction: %v", err)
 	}
 
 	if !isCommit {

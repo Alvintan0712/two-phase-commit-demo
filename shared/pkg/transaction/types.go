@@ -35,10 +35,12 @@ var (
 )
 
 type TransactionData struct {
-	Id        string          `json:"id"`
-	Type      TransactionType `json:"type"`
-	Timestamp time.Time       `json:"timestamp"`
-	Payload   []byte          `json:"payload"`
+	Id           string            `json:"id"`
+	Type         TransactionType   `json:"type"`
+	Timestamp    time.Time         `json:"timestamp"`
+	Payload      []byte            `json:"payload"`
+	Status       TransactionStatus `json:"status"`
+	Participants []string          `json:"participants"`
 }
 
 type TransactionHandler func(txData TransactionData) error
