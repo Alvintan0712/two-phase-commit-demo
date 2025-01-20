@@ -9,7 +9,6 @@ import (
 
 	"github.com/Alvintan0712/two-phase-commit-demo/shared/pkg/zkclient"
 	"github.com/go-zookeeper/zk"
-	"github.com/google/uuid"
 )
 
 type transactionManager struct {
@@ -38,10 +37,9 @@ func NewTransactionManager(client *zkclient.ZooKeeperClient) (*transactionManage
 func (tm *transactionManager) Begin(txType TransactionType, payload []byte, participants []string, resources []ResourceType) (string, error) {
 	log.Printf("begin transaction %s\n", txType)
 
-	txId := uuid.New().String()
-	txPath := tm.basePath + "/" + string(txType) + "/" + txId
+	txPath := tm.basePath + "/" + string(txType)
 	txData := TransactionData{
-		Id:           txId,
+		Id:           "",
 		Type:         txType,
 		Timestamp:    time.Now(),
 		Payload:      payload,
@@ -53,12 +51,13 @@ func (tm *transactionManager) Begin(txType TransactionType, payload []byte, part
 		return "", fmt.Errorf("error in marshal transaction data: %v", err)
 	}
 
-	if err := tm.client.Create(txPath, data); err != nil {
+	txId, err := tm.client.CreateSequential(txPath+"/", data)
+	if err != nil {
 		return "", fmt.Errorf("error in create znode: %v", err)
 	}
 
 	for _, participant := range participants {
-		path := txPath + "/" + participant
+		path := txPath + "/" + txId + "/" + participant
 		if err := tm.client.Create(path, []byte(StatusInit)); err != nil {
 			return "", fmt.Errorf("error in create participant znode: %v", err)
 		}

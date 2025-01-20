@@ -33,6 +33,7 @@ func main() {
 		log.Fatal(err)
 	}
 
+	log.Println("new transaction watcher")
 	txWatcher, err := transaction.NewTransactionWatcher(zkClient)
 	if err != nil {
 		log.Fatal(err)

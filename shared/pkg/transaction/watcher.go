@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
 	"sync"
+	"time"
 
 	"github.com/Alvintan0712/two-phase-commit-demo/shared/pkg/zkclient"
 )
@@ -49,6 +51,8 @@ func (tw *transactionWatcher) GetBasePath() string {
 }
 
 func (tw *transactionWatcher) Watch() {
+	log.Println("start watching transactions")
+
 	for txType := range tw.handlers {
 		tw.wg.Add(1)
 		go tw.watchTransaction(txType)
@@ -97,6 +101,8 @@ func (tw *transactionWatcher) init() error {
 }
 
 func (tw *transactionWatcher) watchTransaction(txType TransactionType) {
+	log.Println("watch transaction", txType)
+
 	defer tw.wg.Done()
 	for {
 		select {
@@ -109,20 +115,18 @@ func (tw *transactionWatcher) watchTransaction(txType TransactionType) {
 				log.Printf("watch %s children failed: %v\n", txType, err)
 				continue
 			}
+			sort.Strings(children)
 
-			var wg sync.WaitGroup
 			for _, txId := range children {
-				wg.Add(1)
-				func() {
-					defer wg.Done()
+				for {
 					if err := tw.processTransaction(txType, txId); err != nil {
 						log.Printf("process %s transaction failed: %v\n", txType, err)
-						return
+						time.Sleep(time.Second)
+						continue
 					}
-				}()
+					break
+				}
 			}
-
-			wg.Wait()
 
 			select {
 			case <-tw.stopChan:
@@ -148,6 +152,7 @@ func (tw *transactionWatcher) processTransaction(txType TransactionType, txId st
 		if err := json.Unmarshal(data, &txData); err != nil {
 			return fmt.Errorf("error unmarshaling transaction data: %v", err)
 		}
+		txData.Id = txId
 
 		if txData.Status == StatusPrepared || txData.Status == StatusRollBack || txData.Status == StatusCommit {
 			break
@@ -175,7 +180,7 @@ func (tw *transactionWatcher) processTransaction(txType TransactionType, txId st
 		return err
 	}
 
-	if err := finalizeHandler(txData.Id); err != nil {
+	if err := finalizeHandler(txId); err != nil {
 		return err
 	}
 

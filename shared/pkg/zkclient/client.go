@@ -2,6 +2,7 @@ package zkclient
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-zookeeper/zk"
@@ -31,6 +32,17 @@ func (c *ZooKeeperClient) Create(path string, data []byte) error {
 	}
 
 	return nil
+}
+
+func (c *ZooKeeperClient) CreateSequential(path string, data []byte) (string, error) {
+	nodePath, err := c.conn.Create(path, data, zk.FlagSequence, zk.WorldACL(zk.PermAll))
+	if err != nil {
+		return "", err
+	}
+
+	nodes := strings.Split(nodePath, "/")
+
+	return nodes[len(nodes)-1], nil
 }
 
 func (c *ZooKeeperClient) CreateEmphemeral(path string, data []byte) error {
