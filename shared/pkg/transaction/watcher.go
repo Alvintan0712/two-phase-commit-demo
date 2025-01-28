@@ -117,6 +117,7 @@ func (tw *transactionWatcher) watchTransaction(txType TransactionType) {
 			}
 			sort.Strings(children)
 
+			// execute the transactions serializely
 			for _, txId := range children {
 				for {
 					if err := tw.processTransaction(txType, txId); err != nil {
